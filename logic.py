@@ -1,70 +1,69 @@
 from sympy import *
+import itertools
 
 
-def resolution(beliefs, alpha):
-    formula = to_cnf(beliefs & ~alpha)
-    clauses = get_clauses(formula)
-    new = set()
-    while True:
-        pairs = [(clauses[i], clauses[j]) for i in range(len(clauses))
-                 for j in range(i + 1, len(clauses))]
-        for (ci, cj) in pairs:
-            resolvents = pl_resolve(ci, cj)
-            if False in resolvents:
-                return True
-            new = new.union(set(resolvents))
+class BeliefBase(object):
 
+    def __init__(self, initial_beliefs=None):
+        if initial_beliefs is not None:
+            self.beliefs = initial_beliefs
+        else:
+            self.beliefs = set()
 
-def pl_resolve(ci, cj):
-    resolvents = set()
-    for di in get_literals(ci):
-        for dj in get_literals(cj):
-            if di == -dj or -di == dj:
-                resolvents.add(associate(Or, unique(remove_all(di, get_literals(ci)) +
-                                                    remove_all(dj, get_literals(cj)))))
-    return resolvents
+    def add(self, belief):
+        self.beliefs.add(belief)
 
+    def remove(self, belief):
+        self.beliefs.remove(belief)
 
-def remove_all(element, iterable):
-    return [item for item in iterable if item != element]
+    def entails(self, alpha):
+        formula = to_cnf(And(*self.beliefs) & ~alpha)
+        clauses = self.get_clauses(formula)
+        new = set()
+        while True:
+            pairs = [pair for pair in itertools.combinations(clauses, 2)]
+            for (ci, cj) in pairs:
+                resolvents = self.pl_resolve(ci, cj)
+                if False in resolvents:
+                    return True
+                new = new.union(set(resolvents))
+            if new.issubset(set(clauses)):
+                return False
 
+            clauses = clauses.union(new)
 
-def unique(iterable):
-    return list(set(iterable))
+    def pl_resolve(self, ci, cj):
+        resolvents = set()
+        for di in self.get_literals(ci):
+            for dj in self.get_literals(cj):
+                if di == ~dj or ~di == dj:
+                    resolvents.add(
+                        Or(*self.unique(self.delete_all(di, self.get_literals(ci)) + self.delete_all(dj, self.get_literals(cj)))))
+        return resolvents
 
+    def delete_all(self, element, iterable):
+        return [item for item in iterable if item != element]
 
-def associate(op, args):
-    if len(args) == 0:
-        if op == And:
-            return True
-        elif op == Or:
-            return False
-    elif len(args) == 1:
-        return args[0]
-    else:
-        return op(*args)
+    def unique(self, iterable):
+        return list(set(iterable))
 
+    def get_literals(self, formula):
+        if isinstance(formula, Symbol) or isinstance(formula, Not):
+            return {formula}
+        else:
+            literals = set()
+            for arg in formula.args:
+                literals |= self.get_literals(arg)
+            return literals
 
-def get_literals(formula):
-    if isinstance(formula, Symbol):
-        return {formula}
-    elif isinstance(formula, Not):
-        return {-formula.args[0]}
-    else:
-        literals = set()
-        for arg in formula.args:
-            literals |= get_literals(arg)
-        return literals
-
-
-def get_clauses(formula):
-    if isinstance(formula, And):
-        clauses = set()
-        for arg in formula.args:
-            clauses |= get_clauses(arg)
-        return clauses
-    else:
-        return {formula}
+    def get_clauses(self, formula):
+        if isinstance(formula, And):
+            clauses = set()
+            for arg in formula.args:
+                clauses |= self.get_clauses(arg)
+            return clauses
+        else:
+            return {formula}
 
 
 p = Symbol('p')
@@ -72,4 +71,7 @@ q = Symbol('q')
 r = Symbol('r')
 s = Symbol('s')
 
-print(pl_resolve(p | ~q, p | q))
+
+bb = BeliefBase({~p | q, p})
+
+print(bb.entails(p))
