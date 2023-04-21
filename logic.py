@@ -2,9 +2,21 @@ from sympy import *
 import itertools
 
 
+class Belief(object):
+    def __init__(self, belief, entrenchment) -> None:
+        self.belief = belief
+        self.entrenchment = entrenchment
+
+    def __str__(self) -> str:
+        return f'{self.belief}: {self.entrenchment}'
+
+    def __repr__(self) -> str:
+        return f'{self.belief}: {self.entrenchment}'
+
+
 class BeliefBase(object):
 
-    def __init__(self, initial_beliefs=None):
+    def __init__(self, initial_beliefs=None) -> None:
         if initial_beliefs is not None:
             self.beliefs = initial_beliefs
         else:
@@ -19,9 +31,14 @@ class BeliefBase(object):
         self.beliefs.remove(belief)
 
     # Check if the belief base entails a given formula, pseudo code from the book
-    def entails(self, alpha):
+    def entails(self, alpha, base=None):
+        if base is not None:
+            beliefs = base
+        else:
+            beliefs = self.beliefs
+
         # Convert to CNF and negate the formula
-        formula = to_cnf(And(*self.beliefs) & ~alpha)
+        formula = to_cnf(And(*beliefs) & ~alpha)
         clauses = self.get_clauses(formula)  # Get all clauses from the formula
         new = set()
         while True:
@@ -74,13 +91,62 @@ class BeliefBase(object):
         else:
             return {formula}
 
+    def revision(self, belief):
+        pass
 
-p = Symbol('p')
-q = Symbol('q')
-r = Symbol('r')
-s = Symbol('s')
+    def contraction(self, belief, order):
+        p = belief
+
+        belief_update = []
+
+        for q in self.beliefs:
+            if q.entrenchment > order:
+                if self.degree(p) == self.degree(Or(sympify(p), sympify(q.belief))):
+                    belief_update.append((q, order))
+
+        for belief, order in belief_update:
+            self.remove(belief)
+            if order > 0:
+                belief.entrenchment = order
+                self.add(belief)
+        return self
+
+    def degree(self, belief):
+        # Degree of acceptance of belief according to BRA_AWilliams
+
+        # tautology
+        if self.entails(sympify(belief), []):
+            return 1
+
+        ordered_beliefs = {}
+
+        # Sort beliefs by entrenchment and group them by entrenchment
+        for _belief in sorted(self.beliefs, key=lambda x: x.entrenchment, reverse=True):
+            if _belief.entrenchment not in ordered_beliefs:
+                ordered_beliefs[_belief.entrenchment] = [_belief.belief]
+            else:
+                ordered_beliefs[_belief.entrenchment].append(_belief.belief)
+        base = []
+        # Check if the belief is entailed by the base
+        for entrenchment, beliefs in ordered_beliefs.items():
+            base += [sympify(_belief) for _belief in beliefs]
+            if self.entails(sympify(belief), base=base):
+                return entrenchment
+
+        return 0
+
+    def expansion(self, belief):
+        pass
+
+    def __str__(self) -> str:
+        return f'{self.beliefs}'
+
+    def __repr__(self) -> Set:
+        return self.beliefs
 
 
-bb = BeliefBase({~p | q, p})
+bb = BeliefBase(set([Belief('p', 0.2), Belief('q', 0.3),
+                Belief('a|c', 0.5), Belief('a&d', 0.9)]))
 
-print(bb.entails(p))
+
+print(bb.contraction('q', 0.1))
