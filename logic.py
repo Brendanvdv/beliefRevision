@@ -103,7 +103,6 @@ class BeliefBase(object):
             if q.entrenchment > order:
                 if self.degree(p) == self.degree(Or(sympify(p), sympify(q.belief))):
                     belief_update.append((q, order))
-
         for belief, order in belief_update:
             self.remove(belief)
             if order > 0:
@@ -135,8 +134,31 @@ class BeliefBase(object):
 
         return 0
 
-    def expansion(self, belief):
-        pass
+    def expansion(self, belief, order):
+
+        p = belief
+
+        #list of all same literals as the expansion
+        list = [q for q in self.beliefs if p == q.belief]
+        
+        #removes duplicate literals and combines their order
+        for q in list:
+            self.remove(q)
+            order += q.entrenchment
+
+        self.add(Belief(belief, order))
+        return self
+
+
+    def expansion2(self, belief, order=None):
+        if order is None:
+            # set the order of the new belief to be higher than the highest order in the belief base
+            if len(self.beliefs) == 0:
+                order = 1
+            else:
+                order = max(belief.entrenchment for belief in self.beliefs) + 1
+        self.add(Belief(belief, order))
+        return self
 
     def __str__(self) -> str:
         return f'{self.beliefs}'
@@ -148,5 +170,10 @@ class BeliefBase(object):
 bb = BeliefBase(set([Belief('p', 0.2), Belief('q', 0.3),
                 Belief('a|c', 0.5), Belief('a&d', 0.9)]))
 
+# bb = BeliefBase(set([Belief('p', 0.2), Belief('q', 0.3)]))
 
-print(bb.contraction('q', 0.1))
+print(bb)
+# print(bb.contraction('q', 0.1))
+# print(bb.contraction('q', 0.1))
+print(bb.expansion('s', 0.1))
+
