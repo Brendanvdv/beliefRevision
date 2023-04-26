@@ -3,28 +3,31 @@ import itertools
 
 
 class Belief(object):
-    def __init__(self, belief, entrenchment) -> None:
-        self.belief = belief
-        self.entrenchment = entrenchment
+    def __init__(self, belief, order) -> None:
+        self.belief = to_cnf(sympify(belief))
+        self.order = order
 
     def __str__(self) -> str:
-        return f'{self.belief}: {self.entrenchment}'
+        return f'{self.belief}: {self.order}'
 
     def __repr__(self) -> str:
-        return f'{self.belief}: {self.entrenchment}'
+        return f'{self.belief}: {self.order}'
 
 
 class BeliefBase(object):
 
-    def __init__(self, initial_beliefs=None) -> None:
+    def __init__(self, initial_beliefs=None, orders=None) -> None:
         if initial_beliefs is not None:
             self.beliefs = initial_beliefs
+            self.orders = orders
         else:
             self.beliefs = set()
+            self.orders = {}
 
     # Add new belief to the belief base
     def add(self, belief):
-        self.beliefs.add(belief)
+        self.beliefs.add(belief.belief)
+        self.orders[str(belief.belief)] = belief.order
 
     # Remove belief from the belief base
     def remove(self, belief):
@@ -33,12 +36,16 @@ class BeliefBase(object):
     # Check if the belief base entails a given formula, pseudo code from the book
     def entails(self, alpha, base=None):
         if base is not None:
-            beliefs = base
+            beliefs = list(base)
         else:
-            beliefs = self.beliefs
-
-        # Convert to CNF and negate the formula
-        formula = to_cnf(And(*beliefs) & ~alpha)
+            beliefs = [belief.belief for belief in list(self.beliefs)]
+        # Convert to CN F and negate the formula
+        if len(beliefs) == 0:
+            formula = ~alpha
+        elif len(beliefs) == 1:
+            formula = to_cnf(beliefs[0] & ~alpha)
+        else:
+            formula = to_cnf(And(*beliefs) & ~alpha)
         clauses = self.get_clauses(formula)  # Get all clauses from the formula
         new = set()
         while True:
@@ -66,7 +73,10 @@ class BeliefBase(object):
                         Or(*self.unique(self.delete_all(di, self.get_literals(ci)) + self.delete_all(dj, self.get_literals(cj)))))  # Add the resolvent to the set of resolvents
         return resolvents
 
+    def implies(self, alpha, beta):
+        return self.entails(Or(~alpha, beta))
     # Delete all occurences of a literal from a set of literals
+
     def delete_all(self, element, iterable):
         return [item for item in iterable if item != element]
 
@@ -82,6 +92,41 @@ class BeliefBase(object):
                 literals |= self.get_literals(arg)
             return literals
 
+    def contract(self, belief):
+        formula = to_cnf(belief)
+
+        remainders = []
+        for _belief in self.beliefs:
+            if self.beliefs - {_belief} and not self.entails(formula, self.beliefs - {_belief}):
+                remainders.append((self.beliefs - {_belief}))
+
+        if not remainders:
+            return
+
+        selected = self.select(remainders)
+
+        self.beliefs = set()
+        for s in selected:
+            self.beliefs |= s
+
+        return self.beliefs
+
+    def select(self, remainders):
+        if not remainders:
+            return []
+
+        selected = []
+        orders = [sum([self.orders[str(belief)]
+                       for belief in remainder]) for remainder in remainders]
+
+        for i in range(len(remainders)):
+            if orders[i] == max(orders):
+                selected.append(remainders[i])
+
+        return selected
+
+        return self.beliefs
+
     def get_clauses(self, formula):
         if isinstance(formula, And):
             clauses = set()
@@ -91,74 +136,13 @@ class BeliefBase(object):
         else:
             return {formula}
 
-    def revision(self, belief):
-        pass
+    def revise(self, belief):
+        self.contract(~belief.belief)
+        self.add(belief)
+        return self.beliefs
 
-    def contraction(self, belief, order):
-        p = belief
-
-        belief_update = []
-
-        for q in self.beliefs:
-            if q.entrenchment > order:
-                if self.degree(p) == self.degree(Or(sympify(p), sympify(q.belief))):
-                    belief_update.append((q, order))
-        for belief, order in belief_update:
-            self.remove(belief)
-            if order > 0:
-                belief.entrenchment = order
-                self.add(belief)
-        return self
-
-    def degree(self, belief):
-        # Degree of acceptance of belief according to BRA_AWilliams
-
-        # tautology
-        if self.entails(sympify(belief), []):
-            return 1
-
-        ordered_beliefs = {}
-
-        # Sort beliefs by entrenchment and group them by entrenchment
-        for _belief in sorted(self.beliefs, key=lambda x: x.entrenchment, reverse=True):
-            if _belief.entrenchment not in ordered_beliefs:
-                ordered_beliefs[_belief.entrenchment] = [_belief.belief]
-            else:
-                ordered_beliefs[_belief.entrenchment].append(_belief.belief)
-        base = []
-        # Check if the belief is entailed by the base
-        for entrenchment, beliefs in ordered_beliefs.items():
-            base += [sympify(_belief) for _belief in beliefs]
-            if self.entails(sympify(belief), base=base):
-                return entrenchment
-
-        return 0
-
-    def expansion(self, belief, order):
-
-        p = belief
-
-        #list of all same literals as the expansion
-        list = [q for q in self.beliefs if p == q.belief]
-        
-        #removes duplicate literals and combines their order
-        for q in list:
-            self.remove(q)
-            order += q.entrenchment
-
-        self.add(Belief(belief, order))
-        return self
-
-
-    def expansion2(self, belief, order=None):
-        if order is None:
-            # set the order of the new belief to be higher than the highest order in the belief base
-            if len(self.beliefs) == 0:
-                order = 1
-            else:
-                order = max(belief.entrenchment for belief in self.beliefs) + 1
-        self.add(Belief(belief, order))
-        return self
+    def expansion(self, belief):
+        self.add(belief)
 
     def __str__(self) -> str:
         return f'{self.beliefs}'
@@ -167,13 +151,10 @@ class BeliefBase(object):
         return self.beliefs
 
 
-bb = BeliefBase(set([Belief('p', 0.2), Belief('q', 0.3),
-                Belief('a|c', 0.5), Belief('a&d', 0.9)]))
+bb = BeliefBase()
+bb.add(Belief('a', 4))
+bb.add(Belief('b', 2))
+bb.add(Belief('a>>b', 3))
 
-# bb = BeliefBase(set([Belief('p', 0.2), Belief('q', 0.3)]))
 
-print(bb)
-# print(bb.contraction('q', 0.1))
-# print(bb.contraction('q', 0.1))
-print(bb.expansion('s', 0.1))
-
+print(bb.revise(Belief('a', 6)))
