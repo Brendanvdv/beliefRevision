@@ -32,6 +32,7 @@ class BeliefBase(object):
     # Remove belief from the belief base
     def remove(self, belief):
         self.beliefs.remove(belief)
+        del self.orders[str(belief)]
 
     # Check if the belief base entails a given formula, pseudo code from the book
     def entails(self, alpha, base=None):
@@ -106,9 +107,12 @@ class BeliefBase(object):
         selected = self.select(remainders)
 
         self.beliefs = set()
+        temp = self.orders
+        self.orders = {}
         for s in selected:
             self.beliefs |= s
-
+            for belief in s:
+                self.orders[str(belief)] = temp[str(belief)]
         return self.beliefs
 
     def select(self, remainders):
@@ -125,7 +129,9 @@ class BeliefBase(object):
 
         return selected
 
-        return self.beliefs
+    def clean(self):
+        self.beliefs = set()
+        self.orders = {}
 
     def get_clauses(self, formula):
         if isinstance(formula, And):
@@ -141,7 +147,7 @@ class BeliefBase(object):
         self.add(belief)
         return self.beliefs
 
-    def expansion(self, belief):
+    def expand(self, belief):
         self.add(belief)
 
     def __str__(self) -> str:
@@ -149,12 +155,3 @@ class BeliefBase(object):
 
     def __repr__(self) -> Set:
         return self.beliefs
-
-
-bb = BeliefBase()
-bb.add(Belief('a', 4))
-bb.add(Belief('b', 2))
-bb.add(Belief('a>>b', 3))
-
-
-print(bb.revise(Belief('a', 6)))
