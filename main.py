@@ -4,7 +4,7 @@ B = BeliefBase()
 B = BeliefBase()
 B.add(Belief('a', 4))
 B.add(Belief('b', 2))
-B.add(Belief('a>>b', 3))
+B.add(Belief('a>>b', 5))
 
 
 def menu_handler():

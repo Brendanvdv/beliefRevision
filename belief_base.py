@@ -48,6 +48,7 @@ class BeliefBase(object):
         else:
             formula = to_cnf(And(*beliefs) & ~alpha)
         clauses = self.get_clauses(formula)  # Get all clauses from the formula
+
         new = set()
         while True:
             pairs = [pair for pair in itertools.combinations(
@@ -76,9 +77,9 @@ class BeliefBase(object):
 
     def implies(self, alpha, beta):
         return self.entails(Or(~alpha, beta))
-    # Delete all occurences of a literal from a set of literals
 
     def delete_all(self, element, iterable):
+        # Delete all occurences of a literal from a set of literals
         return [item for item in iterable if item != element]
 
     def unique(self, iterable):
@@ -94,21 +95,31 @@ class BeliefBase(object):
             return literals
 
     def contract(self, belief):
+        # Delete the belief from the belief base
+
         formula = to_cnf(belief)
 
-        remainders = []
+        r = []
         for _belief in self.beliefs:
+            # check if removing the belief from the belief base entails the formula
             if self.beliefs - {_belief} and not self.entails(formula, self.beliefs - {_belief}):
-                remainders.append((self.beliefs - {_belief}))
+                # _belief can be removed
+                r.append((self.beliefs - {_belief}))
 
-        if not remainders:
+        if not r:
+            # if no belief can be removed, then simply remove the selected belief
+            self.beliefs = self.beliefs - {belief}
+            del self.orders[str(belief)]
             return
 
-        selected = self.select(remainders)
+        # select a belief set to remove based on the order of the beliefs
+        selected = self.select(r)
 
         self.beliefs = set()
         temp = self.orders
         self.orders = {}
+
+        # update the belief base and the order of the beliefs
         for s in selected:
             self.beliefs |= s
             for belief in s:
@@ -120,9 +131,11 @@ class BeliefBase(object):
             return []
 
         selected = []
+        # sum the orders in a set
         orders = [sum([self.orders[str(belief)]
                        for belief in remainder]) for remainder in remainders]
 
+        # select the set with the highest order
         for i in range(len(remainders)):
             if orders[i] == max(orders):
                 selected.append(remainders[i])
