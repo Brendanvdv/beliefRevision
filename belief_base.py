@@ -109,7 +109,8 @@ class BeliefBase(object):
         if not r:
             # if no belief can be removed, then simply remove the selected belief
             self.beliefs = self.beliefs - {belief}
-            del self.orders[str(belief)]
+            if str(belief) in self.orders:
+                del self.orders[str(belief)]
             return
 
         # select a belief set to remove based on the order of the beliefs
