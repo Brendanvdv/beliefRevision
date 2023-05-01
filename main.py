@@ -2,9 +2,14 @@ from belief_base import *
 
 B = BeliefBase()
 B = BeliefBase()
-B.add(Belief('a', 4))
-B.add(Belief('b', 2))
-B.add(Belief('a>>b', 5))
+# B.add(Belief('a', 0.4))
+# B.add(Belief('b', 0.2))
+# B.add(Belief('a|b', 0.5))
+
+B.add(Belief('x',1))
+B.add(Belief('y',1))
+B.add(Belief('x>>y',1))
+# B.add(Belief('x>>y',1))
 
 
 def menu_handler():

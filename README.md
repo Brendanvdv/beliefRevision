@@ -7,3 +7,6 @@
 ## Running the program
 > python main.py
 
+## Agm Tests
+> python agm.py
+
